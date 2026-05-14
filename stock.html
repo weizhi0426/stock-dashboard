@@ -145,10 +145,6 @@
 <h1>📊 美股台股即時看板</h1>
 <div id="update-time">載入中... <span class="loader"></span></div>
 
-<!-- 美股期貨 -->
-<div class="section-title">🇺🇸 美股期貨指數</div>
-<div class="grid" id="us-grid"></div>
-
 <!-- 費城半導體 -->
 <div class="section-title">💡 費城半導體指數 (SOX)</div>
 <div class="grid" id="sox-grid"></div>
@@ -163,12 +159,6 @@
 <script>
   const FINNHUB_KEY = 'd830mrhr01ql4onfpq50d830mrhr01ql4onfpq5g';
 
-  // 美股期貨對應
-  const usFutures = [
-    { symbol: 'YM1!',  name: '小道瓊',      tag: 'Mini Dow' },
-    { symbol: 'ES1!',  name: '小S&P 500',   tag: 'Mini S&P' },
-    { symbol: 'NQ1!',  name: '小那斯達克',  tag: 'Mini Nasdaq' },
-  ];
 
   // SOX 相關美股
   const soxStocks = [
