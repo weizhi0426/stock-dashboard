@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>美股台股即時看板</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      margin-bottom: 6px;
+      color: #58a6ff;
+    }
+
+    #update-time {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #8b949e;
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin: 24px 0 12px;
+      padding-left: 10px;
+      border-left: 4px solid #58a6ff;
+      color: #58a6ff;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      transition: transform 0.2s;
+    }
+
+    .card:hover { transform: translateY(-3px); }
+
+    .card .name {
+      font-size: 0.95rem;
+      color: #8b949e;
+      margin-bottom: 6px;
+    }
+
+    .card .price {
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .card .change {
+      font-size: 1rem;
+      font-weight: bold;
+    }
+
+    .card .tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      background: #21262d;
+      border-radius: 20px;
+      padding: 2px 10px;
+      margin-top: 8px;
+      color: #8b949e;
+    }
+
+    .up { color: #f85149; }
+    .down { color: #3fb950; }
+    .neutral { color: #8b949e; }
+
+    .card.up-card { border-color: rgba(248,81,73,0.4); }
+    .card.down-card { border-color: rgba(63,185,80,0.4); }
+
+    .related-section {
+      margin-top: 10px;
+    }
+
+    .related-title {
+      font-size: 0.8rem;
+      color: #8b949e;
+      margin-bottom: 8px;
+      text-align: left;
+    }
+
+    .tw-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .tw-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .tw-card .tw-name { font-size: 0.85rem; color: #8b949e; }
+    .tw-card .tw-code { font-size: 0.75rem; color: #58a6ff; margin-bottom: 4px; }
+    .tw-card .tw-price { font-size: 1.2rem; font-weight: bold; }
+    .tw-card .tw-change { font-size: 0.85rem; font-weight: bold; }
+
+    .loader {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #30363d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      font-size: 0.75rem;
+      color: #30363d;
+    }
+  </style>
+</head>
+<body>
+
+<h1>📊 美股台股即時看板</h1>
+<div id="update-time">載入中... <span class="loader"></span></div>
+
+<!-- 美股期貨 -->
+<div class="section-title">🇺🇸 美股期貨指數</div>
+<div class="grid" id="us-grid"></div>
+
+<!-- 費城半導體 -->
+<div class="section-title">💡 費城半導體指數 (SOX)</div>
+<div class="grid" id="sox-grid"></div>
+
+<!-- 台股關聯 -->
+<div class="section-title">🇹🇼 台股關聯個股</div>
+
+<div id="tw-sections"></div>
+
+<footer>資料來源：Finnhub・TWSE｜僅供參考，不構成投資建議</footer>
+
+<script>
+  const FINNHUB_KEY = 'd830mrhr01ql4onfpq50d830mrhr01ql4onfpq5g';
+
+  // 美股期貨對應
+  const usFutures = [
+    { symbol: 'YM1!',  name: '小道瓊',      tag: 'Mini Dow' },
+    { symbol: 'ES1!',  name: '小S&P 500',   tag: 'Mini S&P' },
+    { symbol: 'NQ1!',  name: '小那斯達克',  tag: 'Mini Nasdaq' },
+  ];
+
+  // SOX 相關美股
+  const soxStocks = [
+    { symbol: 'NVDA', name: 'NVIDIA' },
+    { symbol: 'AMD',  name: 'AMD' },
+    { symbol: 'INTC', name: 'Intel' },
+    { symbol: 'QCOM', name: 'Qualcomm' },
+    { symbol: 'MU',   name: 'Micron' },
+    { symbol: 'TSM',  name: 'TSMC ADR' },
+    { symbol: 'AVGO', name: 'Broadcom' },
+    { symbol: 'AMAT', name: 'Applied Materials' },
+    { symbol: 'ASML', name: 'ASML' },
+    { symbol: 'KLAC', name: 'KLA Corp' },
+  ];
+
+  // SOX 指數本身
+  const soxIndex = { symbol: '^SOX', name: '費城半導體', tag: 'SOX Index' };
+
+  // 台股關聯對照表
+  const twRelated = [
+    {
+      group: '📈 小道瓊 & S&P500 相關',
+      stocks: [
+        { code: '2882', name: '國泰金' },
+        { code: '2891', name: '中信金' },
+        { code: '2886', name: '兆豐金' },
+        { code: '2317', name: '鴻海' },
+        { code: '2330', name: '台積電' },
+      ]
+    },
+    {
+      group: '💻 小那斯達克 科技相關',
+      stocks: [
+        { code: '2330', name: '台積電' },
+        { code: '2454', name: '聯發科' },
+        { code: '2317', name: '鴻海' },
+        { code: '3231', name: '緯創' },
+        { code: '2382', name: '廣達' },
+        { code: '2308', name: '台達電' },
+      ]
+    },
+    {
+      group: '🔬 費城半導體 相關',
+      stocks: [
+        { code: '2330', name: '台積電' },
+        { code: '2303', name: '聯電' },
+        { code: '2454', name: '聯發科' },
+        { code: '3711', name: '日月光投控' },
+        { code: '2408', name: '南亞科' },
+        { code: '2344', name: '華邦電' },
+        { code: '3680', name: '家登' },
+        { code: '3583', name: '辛耘' },
+        { code: '2379', name: '瑞昱' },
+        { code: '6449', name: '網家' },
+      ]
+    }
+  ];
+
+  // 顏色判斷
+  function colorClass(val) {
+    if (val > 0) return 'up';
+    if (val < 0) return 'down';
+    return 'neutral';
+  }
+  function cardClass(val) {
+    if (val > 0) return 'up-card';
+    if (val < 0) return 'down-card';
+    return '';
+  }
+  function arrow(val) {
+    if (val > 0) return '▲';
+    if (val < 0) return '▼';
+    return '－';
+  }
+
+  // Finnhub 抓單一股票
+  async function fetchFinnhub(symbol) {
+    const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_KEY}`;
+    const res = await fetch(url);
+    return res.json();
+  }
+
+  // 渲染美股卡片
+  function renderUsCard(data, info) {
+    const pct = data.dp ?? 0;
+    const price = data.c ?? 0;
+    const diff = data.d ?? 0;
+    return `
+      <div class="card ${cardClass(pct)}">
+        <div class="name">${info.name}</div>
+        <div class="price ${colorClass(pct)}">${price.toLocaleString()}</div>
+        <div class="change ${colorClass(pct)}">${arrow(pct)} ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)</div>
+        <span class="tag">${info.tag}</span>
+      </div>`;
+  }
+
+  // 渲染台股卡片
+  function renderTwCard(stock, price, change, pct) {
+    return `
+      <div class="tw-card">
+        <div class="tw-code">${stock.code}</div>
+        <div class="tw-name">${stock.name}</div>
+        <div class="tw-price ${colorClass(pct)}">${price ?? 'N/A'}</div>
+        <div class="tw-change ${colorClass(pct)}">${arrow(pct)} ${change >= 0 ? '+' : ''}${change} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)</div>
+      </div>`;
+  }
+
+  // 抓台股（TWSE API）
+  async function fetchTwStock(code) {
+    try {
+      const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${code}.tw&json=1&delay=0`;
+      const res = await fetch(url);
+      const json = await res.json();
+      const d = json.msgArray?.[0];
+      if (!d) return null;
+      const price = parseFloat(d.z) || parseFloat(d.y);
+      const yesterday = parseFloat(d.y);
+      const change = +(price - yesterday).toFixed(2);
+      const pct = +((change / yesterday) * 100).toFixed(2);
+      return { price, change, pct };
+    } catch { return null; }
+  }
+
+  // 主程式
+  async function loadAll() {
+    document.getElementById('update-time').innerHTML = '更新中... <span class="loader"></span>';
+
+    // === 美股期貨 ===
+    const usGrid = document.getElementById('us-grid');
+    usGrid.innerHTML = '';
+    for (const info of usFutures) {
+      try {
+        const data = await fetchFinnhub(info.symbol);
+        usGrid.innerHTML += renderUsCard(data, info);
+      } catch {
+        usGrid.innerHTML += `<div class="card"><div class="name">${info.name}</div><div class="change neutral">載入失敗</div></div>`;
+      }
+    }
+
+    // === SOX 指數 + 成分股 ===
+    const soxGrid = document.getElementById('sox-grid');
+    soxGrid.innerHTML = '';
+    // SOX 指數
+    try {
+      const data = await fetchFinnhub('^SOX');
+      soxGrid.innerHTML += renderUsCard(data, soxIndex);
+    } catch {
+      soxGrid.innerHTML += `<div class="card"><div class="name">費城半導體</div><div class="change neutral">載入失敗</div></div>`;
+    }
+    // 成分股
+    for (const s of soxStocks) {
+      try {
+        const data = await fetchFinnhub(s.symbol);
+        soxGrid.innerHTML += renderUsCard(data, { ...s, tag: s.symbol });
+      } catch {
+        soxGrid.innerHTML += `<div class="card"><div class="name">${s.name}</div><div class="change neutral">載入失敗</div></div>`;
+      }
+    }
+
+    // === 台股 ===
+    const twSections = document.getElementById('tw-sections');
+    twSections.innerHTML = '';
+    for (const group of twRelated) {
+      let html = `<div class="related-section">
+        <div class="section-title" style="font-size:1rem;">${group.group}</div>
+        <div class="tw-grid">`;
+      for (const stock of group.stocks) {
+        const result = await fetchTwStock(stock.code);
+        if (result) {
+          html += renderTwCard(stock, result.price, result.change, result.pct);
+        } else {
+          html += `<div class="tw-card">
+            <div class="tw-code">${stock.code}</div>
+            <div class="tw-name">${stock.name}</div>
+            <div class="tw-price neutral">N/A</div>
+          </div>`;
+        }
+      }
+      html += `</div></div>`;
+      twSections.innerHTML += html;
+    }
+
+    // 更新時間
+    const now = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+    document.getElementById('update-time').innerHTML = `最後更新：${now}　　每 60 秒自動更新`;
+  }
+
+  // 每 60 秒更新
+  loadAll();
+  setInterval(loadAll, 60000);
+</script>
+</body>
+</html>
